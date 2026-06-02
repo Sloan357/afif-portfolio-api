@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\HeroContentController;
 use App\Http\Controllers\Api\V1\LabProjectsController;
 use App\Http\Controllers\Api\V1\ProjectsController;
 use App\Http\Controllers\Api\V1\SiteSettingsController;
+use App\Http\Controllers\Api\V1\TechnologiesController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -16,4 +17,5 @@ Route::prefix('v1')->group(function (): void {
     Route::get('projects', [ProjectsController::class, 'index'])->name('api.v1.projects.index');
     Route::get('projects/{slug}', [ProjectsController::class, 'show'])->name('api.v1.projects.show');
     Route::get('settings', SiteSettingsController::class)->name('api.v1.settings');
+    Route::get('technologies', [TechnologiesController::class, 'index'])->name('api.v1.technologies.index');
 });
