@@ -20,6 +20,21 @@ class ApiResponse
     }
 
     /**
+     * @param  array<string, array<int, string>>  $errors
+     * @param  array<string, mixed>  $meta
+     * @param  array<string, mixed>  $links
+     */
+    public static function validationError(array $errors, array $meta = [], array $links = []): JsonResponse
+    {
+        return response()->json([
+            'data' => null,
+            'errors' => $errors,
+            'meta' => array_merge(self::defaultMeta(), $meta),
+            'links' => (object) $links,
+        ], 422);
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function defaultMeta(): array
@@ -27,7 +42,7 @@ class ApiResponse
         return [
             'apiVersion' => 'v1',
             'locale' => app()->getLocale(),
-            'defaultLocale' => (string) config('app.locale', 'en'),
+            'defaultLocale' => PublicApiLocale::DEFAULT_LOCALE,
             'generatedAt' => now()->toIso8601String(),
         ];
     }
