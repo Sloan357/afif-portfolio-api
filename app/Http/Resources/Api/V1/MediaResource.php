@@ -27,8 +27,8 @@ class MediaResource extends JsonResource
             'height' => $this->height,
             'mimeType' => $this->mime_type,
             'sizeBytes' => $this->size_bytes,
-            'variants' => $this->variants ?? [],
-            'metadata' => $this->metadata ?? [],
+            'variants' => $this->publicVariants(),
+            'metadata' => $this->publicMetadata(),
         ];
     }
 
@@ -94,6 +94,70 @@ class MediaResource extends JsonResource
     private function hasLocalizedValue(?array $values, string $locale): bool
     {
         return isset($values[$locale]) && is_scalar($values[$locale]) && trim((string) $values[$locale]) !== '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function publicMetadata(): array
+    {
+        $metadata = is_array($this->metadata) ? $this->metadata : [];
+        $allowedKeys = config('portfolio.media.public_metadata_keys', ['blurhash']);
+
+        return collect($metadata)
+            ->only($allowedKeys)
+            ->all();
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function publicVariants(): array
+    {
+        $variants = is_array($this->variants) ? $this->variants : [];
+        $allowedKeys = config('portfolio.media.public_variant_keys', [
+            'src',
+            'url',
+            'path',
+            'width',
+            'height',
+            'mimeType',
+            'sizeBytes',
+        ]);
+        $publicVariants = [];
+
+        foreach ($variants as $name => $variant) {
+            if (! is_string($name) || ! is_array($variant)) {
+                continue;
+            }
+
+            $safeVariant = collect($variant)
+                ->only($allowedKeys)
+                ->filter(fn (mixed $value): bool => is_scalar($value) && trim((string) $value) !== '')
+                ->all();
+
+            if (! $this->hasPublicVariantSource($safeVariant)) {
+                continue;
+            }
+
+            $publicVariants[$name] = $safeVariant;
+        }
+
+        return $publicVariants;
+    }
+
+    /**
+     * @param  array<string, mixed>  $variant
+     */
+    private function hasPublicVariantSource(array $variant): bool
+    {
+        foreach (['src', 'url', 'path'] as $sourceKey) {
+            if (isset($variant[$sourceKey]) && is_scalar($variant[$sourceKey]) && trim((string) $variant[$sourceKey]) !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function sourceUrl(): ?string

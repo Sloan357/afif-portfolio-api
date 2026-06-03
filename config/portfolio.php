@@ -20,6 +20,24 @@ return [
     'storage' => [
         'cdn_url' => env('CDN_URL'),
         'asset_url' => env('ASSET_URL'),
+
+        // Private media must stay on a private disk and must not be stored on
+        // public disk/CDN paths. Public API resources will not emit private
+        // media URLs, but storage placement must enforce the same boundary.
+        'private_media_disk' => env('PRIVATE_MEDIA_DISK', 'local'),
+    ],
+
+    'media' => [
+        'public_metadata_keys' => ['blurhash'],
+        'public_variant_keys' => [
+            'src',
+            'url',
+            'path',
+            'width',
+            'height',
+            'mimeType',
+            'sizeBytes',
+        ],
     ],
 
     'openai' => [

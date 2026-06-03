@@ -154,4 +154,30 @@ class PublicApiValidationTest extends TestCase
             ->assertJsonPath('data', null)
             ->assertJsonPath('links.self', url('/api/v1/blog-posts/invalid_slug'));
     }
+
+    public function test_ai_drafts_are_not_routable_from_public_api(): void
+    {
+        foreach (['/api/v1/ai-drafts', '/api/v1/ai-drafts/example-draft'] as $endpoint) {
+            $response = $this->getJson($endpoint);
+
+            $response
+                ->assertStatus(404)
+                ->assertJsonPath('data', null)
+                ->assertJsonPath('meta.apiVersion', 'v1')
+                ->assertJsonPath('links.self', url($endpoint));
+        }
+    }
+
+    public function test_ai_request_logs_are_not_routable_from_public_api(): void
+    {
+        foreach (['/api/v1/ai-request-logs', '/api/v1/ai-request-logs/example-log'] as $endpoint) {
+            $response = $this->getJson($endpoint);
+
+            $response
+                ->assertStatus(404)
+                ->assertJsonPath('data', null)
+                ->assertJsonPath('meta.apiVersion', 'v1')
+                ->assertJsonPath('links.self', url($endpoint));
+        }
+    }
 }
