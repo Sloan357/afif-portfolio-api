@@ -2,11 +2,14 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Http\Resources\Api\V1\Concerns\SerializesMedia;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class TechnologyResource extends JsonResource
 {
+    use SerializesMedia;
+
     /**
      * @return array<string, mixed>
      */
@@ -19,18 +22,9 @@ class TechnologyResource extends JsonResource
             'category' => $this->enumValue($this->category),
             'websiteUrl' => $this->website_url,
             'color' => $this->color,
-            'icon' => $this->serializeIcon($request),
+            'icon' => $this->serializeMedia($request, 'iconMedia'),
             'sortOrder' => $this->sort_order,
         ];
-    }
-
-    private function serializeIcon(Request $request): ?array
-    {
-        if (! $this->resource->relationLoaded('iconMedia') || ! $this->iconMedia || ! $this->iconMedia->is_public) {
-            return null;
-        }
-
-        return (new MediaResource($this->iconMedia))->resolve($request);
     }
 
     private function enumValue(mixed $value): mixed

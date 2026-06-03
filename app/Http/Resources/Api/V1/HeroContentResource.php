@@ -2,12 +2,17 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Http\Resources\Api\V1\Concerns\ResolvesLocalizedFields;
+use App\Http\Resources\Api\V1\Concerns\SerializesMedia;
 use App\Support\PublicApiLocale;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class HeroContentResource extends JsonResource
 {
+    use ResolvesLocalizedFields;
+    use SerializesMedia;
+
     /**
      * @return array<string, mixed>
      */
@@ -34,41 +39,13 @@ class HeroContentResource extends JsonResource
      */
     public function fallbackMeta(Request $request): array
     {
-        $localeMeta = PublicApiLocale::resolve($request);
-        $missingFields = [];
-        $fallbackFields = [];
+        [$missingFields, $fallbackFields] = $this->localizedFallbackFields($request, $this->localizedFieldMap());
+        [$missingFields, $fallbackFields] = $this->mergeMediaFallbackMeta($request, [
+            'heroImage' => 'heroImage',
+            'ogImage' => 'ogImage',
+        ], $missingFields, $fallbackFields);
 
-        foreach ($this->localizedFieldMap() as $field => $attribute) {
-            if ($this->hasLocalizedValue($attribute, $localeMeta['resolvedLocale'])) {
-                continue;
-            }
-
-            if ($this->hasLocalizedValue($attribute, PublicApiLocale::DEFAULT_LOCALE)) {
-                $fallbackFields[] = $field;
-            } else {
-                $missingFields[] = $field;
-            }
-        }
-
-        foreach (['heroImage' => 'heroImage', 'ogImage' => 'ogImage'] as $prefix => $relation) {
-            $media = $this->mediaRelation($relation);
-
-            if (! $media || ! $media->is_public) {
-                continue;
-            }
-
-            $mediaMeta = (new MediaResource($media))->fallbackMeta($request);
-            $missingFields = array_merge($missingFields, $this->prefixFields($prefix, $mediaMeta['missingFields']));
-            $fallbackFields = array_merge($fallbackFields, $this->prefixFields($prefix, $mediaMeta['fallbackFields']));
-        }
-
-        return PublicApiLocale::fallbackMeta(
-            requestedLocale: $localeMeta['requestedLocale'],
-            resolvedLocale: $localeMeta['resolvedLocale'],
-            fallbackUsed: $localeMeta['fallbackUsed'] || $fallbackFields !== [],
-            missingFields: $missingFields,
-            fallbackFields: $fallbackFields,
-        );
+        return $this->fallbackMetaFromFields($request, $missingFields, $fallbackFields);
     }
 
     /**
@@ -88,43 +65,6 @@ class HeroContentResource extends JsonResource
         ];
     }
 
-    private function localizedValue(string $attribute, string $locale): mixed
-    {
-        $translation = $this->translation($locale);
-
-        if ($translation && $this->hasValue($translation->{$attribute})) {
-            return $translation->{$attribute};
-        }
-
-        $fallbackTranslation = $this->translation(PublicApiLocale::DEFAULT_LOCALE);
-
-        if ($fallbackTranslation && $this->hasValue($fallbackTranslation->{$attribute})) {
-            return $fallbackTranslation->{$attribute};
-        }
-
-        return null;
-    }
-
-    private function hasLocalizedValue(string $attribute, string $locale): bool
-    {
-        $translation = $this->translation($locale);
-
-        return $translation !== null && $this->hasValue($translation->{$attribute});
-    }
-
-    private function hasValue(mixed $value): bool
-    {
-        if (is_array($value)) {
-            return $value !== [];
-        }
-
-        if (is_string($value)) {
-            return trim($value) !== '';
-        }
-
-        return filled($value);
-    }
-
     /**
      * @return array<string, string>
      */
@@ -139,39 +79,5 @@ class HeroContentResource extends JsonResource
             'capabilities' => 'capabilities',
             'architectureItems' => 'architecture_items',
         ];
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function prefixFields(string $prefix, array $fields): array
-    {
-        return array_map(fn (string $field): string => $prefix.'.'.$field, $fields);
-    }
-
-    /**
-     * @param  'heroImage'|'ogImage'  $relation
-     */
-    private function serializeMedia(Request $request, string $relation): ?array
-    {
-        $media = $this->mediaRelation($relation);
-
-        if (! $media || ! $media->is_public) {
-            return null;
-        }
-
-        return (new MediaResource($media))->resolve($request);
-    }
-
-    /**
-     * @param  'heroImage'|'ogImage'  $relation
-     */
-    private function mediaRelation(string $relation): mixed
-    {
-        if (! $this->resource->relationLoaded($relation)) {
-            return null;
-        }
-
-        return $this->{$relation};
     }
 }
