@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Concerns\HandlesPublicApiRequests;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\ProjectResource;
 use App\Models\Project;
@@ -13,12 +14,14 @@ use Illuminate\Support\Collection;
 
 class ProjectsController extends Controller
 {
+    use HandlesPublicApiRequests;
+
     public function index(Request $request): JsonResponse
     {
-        $localeMeta = $this->resolveLocale($request);
+        $localeMeta = $this->resolvePublicApiLocale($request);
 
-        if ($this->hasInvalidLocale($localeMeta)) {
-            return $this->invalidLocaleResponse($localeMeta);
+        if ($localeMeta instanceof JsonResponse) {
+            return $localeMeta;
         }
 
         $projects = Project::query()
@@ -39,10 +42,10 @@ class ProjectsController extends Controller
 
     public function show(Request $request, string $slug): JsonResponse
     {
-        $localeMeta = $this->resolveLocale($request);
+        $localeMeta = $this->resolvePublicApiLocale($request);
 
-        if ($this->hasInvalidLocale($localeMeta)) {
-            return $this->invalidLocaleResponse($localeMeta);
+        if ($localeMeta instanceof JsonResponse) {
+            return $localeMeta;
         }
 
         $project = Project::query()
@@ -52,7 +55,7 @@ class ProjectsController extends Controller
             ->first();
 
         if (! $project) {
-            return ApiResponse::make(null, $localeMeta, links: ['self' => url('/api/v1/projects/'.$slug)], status: 404);
+            return $this->publicApiNotFound($request, url('/api/v1/projects/'.$slug));
         }
 
         $resource = new ProjectResource($project);
@@ -61,37 +64,6 @@ class ProjectsController extends Controller
             data: $resource->resolve($request),
             meta: $resource->fallbackMeta($request),
             links: ['self' => url('/api/v1/projects/'.$project->slug)],
-        );
-    }
-
-    /**
-     * @return array{requestedLocale: ?string, resolvedLocale: string, defaultLocale: string, fallbackLocale: string, fallbackUsed: bool, missingFields: array<int, string>, fallbackFields: array<int, string>}
-     */
-    private function resolveLocale(Request $request): array
-    {
-        $localeMeta = PublicApiLocale::resolve($request);
-
-        app()->setLocale($localeMeta['resolvedLocale']);
-
-        return $localeMeta;
-    }
-
-    /**
-     * @param  array{requestedLocale: ?string, resolvedLocale: string, defaultLocale: string, fallbackLocale: string, fallbackUsed: bool, missingFields: array<int, string>, fallbackFields: array<int, string>}  $localeMeta
-     */
-    private function hasInvalidLocale(array $localeMeta): bool
-    {
-        return $localeMeta['requestedLocale'] !== null && ! PublicApiLocale::isSupported($localeMeta['requestedLocale']);
-    }
-
-    /**
-     * @param  array{requestedLocale: ?string, resolvedLocale: string, defaultLocale: string, fallbackLocale: string, fallbackUsed: bool, missingFields: array<int, string>, fallbackFields: array<int, string>}  $localeMeta
-     */
-    private function invalidLocaleResponse(array $localeMeta): JsonResponse
-    {
-        return ApiResponse::validationError(
-            PublicApiLocale::validationErrors($localeMeta['requestedLocale']),
-            $localeMeta,
         );
     }
 

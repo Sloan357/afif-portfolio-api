@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Concerns\HandlesPublicApiRequests;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\TechnologyResource;
 use App\Models\Technology;
@@ -11,8 +12,16 @@ use Illuminate\Http\Request;
 
 class TechnologiesController extends Controller
 {
+    use HandlesPublicApiRequests;
+
     public function index(Request $request): JsonResponse
     {
+        $localeMeta = $this->resolvePublicApiLocale($request);
+
+        if ($localeMeta instanceof JsonResponse) {
+            return $localeMeta;
+        }
+
         $technologies = Technology::query()
             ->visible()
             ->with('iconMedia')

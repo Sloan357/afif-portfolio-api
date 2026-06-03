@@ -15,14 +15,24 @@ class PublicApiLocale
      */
     public static function resolve(Request $request): array
     {
-        $requestedLocale = $request->query('locale');
-        $requestedLocale = is_string($requestedLocale) && $requestedLocale !== '' ? $requestedLocale : null;
+        $requestedLocale = self::requestedLocale($request);
 
         return self::fallbackMeta(
             requestedLocale: $requestedLocale,
             resolvedLocale: self::isSupported($requestedLocale) ? $requestedLocale : self::DEFAULT_LOCALE,
             fallbackUsed: $requestedLocale !== null && ! self::isSupported($requestedLocale),
         );
+    }
+
+    public static function isRequestValid(Request $request): bool
+    {
+        $rawLocale = $request->query('locale');
+
+        if ($rawLocale === null || $rawLocale === '') {
+            return true;
+        }
+
+        return is_string($rawLocale) && self::isSupported($rawLocale);
     }
 
     public static function isSupported(?string $locale): bool
@@ -33,7 +43,7 @@ class PublicApiLocale
     /**
      * @return array<string, array<int, string>>
      */
-    public static function validationErrors(?string $locale): array
+    public static function validationErrors(): array
     {
         return [
             'locale' => [
@@ -66,5 +76,12 @@ class PublicApiLocale
             'missingFields' => $missingFields,
             'fallbackFields' => $fallbackFields,
         ];
+    }
+
+    private static function requestedLocale(Request $request): ?string
+    {
+        $requestedLocale = $request->query('locale');
+
+        return is_string($requestedLocale) && $requestedLocale !== '' ? $requestedLocale : null;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Concerns\HandlesPublicApiRequests;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\LabProjectResource;
 use App\Models\LabProject;
@@ -13,17 +14,14 @@ use Illuminate\Support\Collection;
 
 class LabProjectsController extends Controller
 {
+    use HandlesPublicApiRequests;
+
     public function index(Request $request): JsonResponse
     {
-        $localeMeta = PublicApiLocale::resolve($request);
+        $localeMeta = $this->resolvePublicApiLocale($request);
 
-        app()->setLocale($localeMeta['resolvedLocale']);
-
-        if ($localeMeta['requestedLocale'] !== null && ! PublicApiLocale::isSupported($localeMeta['requestedLocale'])) {
-            return ApiResponse::validationError(
-                PublicApiLocale::validationErrors($localeMeta['requestedLocale']),
-                $localeMeta,
-            );
+        if ($localeMeta instanceof JsonResponse) {
+            return $localeMeta;
         }
 
         $labProjects = LabProject::query()

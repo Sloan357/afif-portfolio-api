@@ -13,14 +13,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::get('blog-posts', [BlogPostsController::class, 'index'])->name('api.v1.blog-posts.index');
-    Route::get('blog-posts/{slug}', [BlogPostsController::class, 'show'])->name('api.v1.blog-posts.show');
+    Route::get('blog-posts/{slug}', [BlogPostsController::class, 'show'])->where('slug', '[A-Za-z0-9-]+')->name('api.v1.blog-posts.show');
     Route::get('experience', [ExperiencesController::class, 'index'])->name('api.v1.experience.index');
     Route::get('health', HealthController::class)->name('api.v1.health');
     Route::get('home', HomeController::class)->name('api.v1.home');
     Route::get('hero', HeroContentController::class)->name('api.v1.hero');
     Route::get('labs', [LabProjectsController::class, 'index'])->name('api.v1.labs.index');
     Route::get('projects', [ProjectsController::class, 'index'])->name('api.v1.projects.index');
-    Route::get('projects/{slug}', [ProjectsController::class, 'show'])->name('api.v1.projects.show');
+    Route::get('projects/{slug}', [ProjectsController::class, 'show'])->where('slug', '[A-Za-z0-9-]+')->name('api.v1.projects.show');
     Route::get('settings', SiteSettingsController::class)->name('api.v1.settings');
     Route::get('technologies', [TechnologiesController::class, 'index'])->name('api.v1.technologies.index');
 });

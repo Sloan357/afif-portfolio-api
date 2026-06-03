@@ -2,25 +2,22 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Concerns\HandlesPublicApiRequests;
 use App\Http\Controllers\Controller;
 use App\Support\ApiResponse;
-use App\Support\PublicApiLocale;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class HealthController extends Controller
 {
+    use HandlesPublicApiRequests;
+
     public function __invoke(Request $request): JsonResponse
     {
-        $localeMeta = PublicApiLocale::resolve($request);
+        $localeMeta = $this->resolvePublicApiLocale($request);
 
-        app()->setLocale($localeMeta['resolvedLocale']);
-
-        if ($localeMeta['requestedLocale'] !== null && ! PublicApiLocale::isSupported($localeMeta['requestedLocale'])) {
-            return ApiResponse::validationError(
-                PublicApiLocale::validationErrors($localeMeta['requestedLocale']),
-                $localeMeta,
-            );
+        if ($localeMeta instanceof JsonResponse) {
+            return $localeMeta;
         }
 
         return ApiResponse::make([
