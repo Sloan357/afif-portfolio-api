@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Concerns\HandlesPublicApiPagination;
 use App\Http\Controllers\Api\V1\Concerns\HandlesPublicApiRequests;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\BlogPostResource;
@@ -14,6 +15,7 @@ use Illuminate\Support\Collection;
 
 class BlogPostsController extends Controller
 {
+    use HandlesPublicApiPagination;
     use HandlesPublicApiRequests;
 
     public function index(Request $request): JsonResponse
@@ -24,6 +26,12 @@ class BlogPostsController extends Controller
             return $localeMeta;
         }
 
+        $pagination = $this->resolvePublicApiPagination($request, $localeMeta);
+
+        if ($pagination instanceof JsonResponse) {
+            return $pagination;
+        }
+
         $blogPosts = BlogPost::query()
             ->published()
             ->with(['translations', 'featuredImage', 'seoImage'])
@@ -31,12 +39,19 @@ class BlogPostsController extends Controller
             ->orderBy('sort_order')
             ->latest('published_at')
             ->latest('id')
-            ->get();
+            ->paginate(
+                perPage: $pagination['perPage'],
+                page: $pagination['page'],
+            )
+            ->withQueryString();
 
         return ApiResponse::make(
-            data: $blogPosts->map(fn (BlogPost $blogPost): array => (new BlogPostResource($blogPost))->resolve($request))->values(),
-            meta: $this->collectionFallbackMeta($request, $blogPosts),
-            links: ['self' => url('/api/v1/blog-posts')],
+            data: $blogPosts->getCollection()->map(fn (BlogPost $blogPost): array => (new BlogPostResource($blogPost))->resolve($request))->values(),
+            meta: array_merge(
+                $this->collectionFallbackMeta($request, $blogPosts->getCollection()),
+                ['pagination' => $this->paginationMeta($blogPosts)],
+            ),
+            links: $this->paginationLinks($blogPosts),
         );
     }
 

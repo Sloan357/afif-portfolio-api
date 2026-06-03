@@ -39,6 +39,7 @@ class PublicApiHomeTest extends TestCase
             ->assertJsonPath('data.experience.0.company', 'Acme')
             ->assertJsonPath('data.technologies.0.slug', 'laravel')
             ->assertJsonPath('meta.resolvedLocale', 'en')
+            ->assertJsonMissingPath('meta.pagination')
             ->assertJsonPath('links.self', url('/api/v1/home'))
             ->assertJsonMissingPath('data.settings.adminUrl')
             ->assertJsonMissingPath('data.hero.createdBy')

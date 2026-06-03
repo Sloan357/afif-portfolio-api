@@ -127,12 +127,111 @@ class PublicApiProjectsTest extends TestCase
             ->assertJsonPath('links.self', url('/api/v1/projects/missing-project'));
     }
 
-    private function createProject(string $slug, ProjectStatus $status): Project
+    public function test_projects_list_returns_paginated_envelope(): void
+    {
+        foreach (range(1, 13) as $index) {
+            $project = $this->createProject('project-'.$index, ProjectStatus::Published);
+            ProjectTranslation::query()->create([
+                'project_id' => $project->id,
+                'locale' => 'en',
+                'title' => 'Project '.$index,
+            ]);
+        }
+
+        $response = $this->getJson('/api/v1/projects');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(12, 'data')
+            ->assertJsonPath('meta.pagination.currentPage', 1)
+            ->assertJsonPath('meta.pagination.perPage', 12)
+            ->assertJsonPath('meta.pagination.lastPage', 2)
+            ->assertJsonPath('meta.pagination.total', 13)
+            ->assertJsonPath('meta.pagination.from', 1)
+            ->assertJsonPath('meta.pagination.to', 12)
+            ->assertJsonStructure([
+                'links' => ['self', 'first', 'last', 'prev', 'next'],
+            ]);
+    }
+
+    public function test_projects_page_changes_records(): void
+    {
+        foreach (range(1, 3) as $index) {
+            $project = $this->createProject('project-'.$index, ProjectStatus::Published, $index);
+            ProjectTranslation::query()->create([
+                'project_id' => $project->id,
+                'locale' => 'en',
+                'title' => 'Project '.$index,
+            ]);
+        }
+
+        $firstPage = $this->getJson('/api/v1/projects?perPage=1&page=1');
+        $secondPage = $this->getJson('/api/v1/projects?perPage=1&page=2');
+
+        $firstPage->assertJsonPath('data.0.slug', 'project-1');
+        $secondPage
+            ->assertOk()
+            ->assertJsonPath('data.0.slug', 'project-2')
+            ->assertJsonPath('meta.pagination.currentPage', 2)
+            ->assertJsonPath('links.prev', url('/api/v1/projects?perPage=1&page=1'));
+    }
+
+    public function test_projects_per_page_controls_size(): void
+    {
+        foreach (range(1, 3) as $index) {
+            $project = $this->createProject('project-'.$index, ProjectStatus::Published, $index);
+            ProjectTranslation::query()->create([
+                'project_id' => $project->id,
+                'locale' => 'en',
+                'title' => 'Project '.$index,
+            ]);
+        }
+
+        $response = $this->getJson('/api/v1/projects?perPage=2');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.pagination.perPage', 2)
+            ->assertJsonPath('meta.pagination.lastPage', 2);
+    }
+
+    public function test_projects_invalid_page_returns_validation_error(): void
+    {
+        $response = $this->getJson('/api/v1/projects?page=0');
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('errors.page.0', 'The page must be an integer greater than or equal to 1.');
+    }
+
+    public function test_projects_invalid_per_page_returns_validation_error(): void
+    {
+        $response = $this->getJson('/api/v1/projects?perPage=abc');
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('errors.perPage.0', 'The perPage must be an integer between 1 and 50.');
+    }
+
+    public function test_projects_per_page_max_is_enforced(): void
+    {
+        $response = $this->getJson('/api/v1/projects?perPage=51');
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('errors.perPage.0', 'The perPage must be an integer between 1 and 50.');
+    }
+
+    private function createProject(string $slug, ProjectStatus $status, ?int $sortOrder = null): Project
     {
         return Project::query()->create([
             'slug' => $slug,
             'status' => $status,
             'is_featured' => false,
+            'sort_order' => $sortOrder,
             'published_at' => $status === ProjectStatus::Published ? now() : null,
         ]);
     }
