@@ -80,6 +80,42 @@ class PublicApiHomeTest extends TestCase
             'title' => 'Draft Project',
         ]);
 
+        $nonFeaturedProject = Project::query()->create([
+            'slug' => 'non-featured-project',
+            'status' => ProjectStatus::Published,
+            'is_featured' => false,
+            'published_at' => now(),
+        ]);
+        ProjectTranslation::query()->create([
+            'project_id' => $nonFeaturedProject->id,
+            'locale' => 'en',
+            'title' => 'Non Featured Project',
+        ]);
+
+        $archivedProject = Project::query()->create([
+            'slug' => 'archived-project',
+            'status' => ProjectStatus::Archived,
+            'is_featured' => true,
+            'published_at' => now(),
+        ]);
+        ProjectTranslation::query()->create([
+            'project_id' => $archivedProject->id,
+            'locale' => 'en',
+            'title' => 'Archived Project',
+        ]);
+
+        $futureProject = Project::query()->create([
+            'slug' => 'future-project',
+            'status' => ProjectStatus::Published,
+            'is_featured' => true,
+            'published_at' => now()->addDay(),
+        ]);
+        ProjectTranslation::query()->create([
+            'project_id' => $futureProject->id,
+            'locale' => 'en',
+            'title' => 'Future Project',
+        ]);
+
         $ideaLab = LabProject::query()->create([
             'slug' => 'idea-lab',
             'status' => LabProjectStatus::Idea,
@@ -89,6 +125,30 @@ class PublicApiHomeTest extends TestCase
             'lab_project_id' => $ideaLab->id,
             'locale' => 'en',
             'title' => 'Idea Lab',
+        ]);
+
+        $archivedLab = LabProject::query()->create([
+            'slug' => 'archived-lab',
+            'status' => LabProjectStatus::Archived,
+            'is_featured' => true,
+            'published_at' => now(),
+        ]);
+        LabProjectTranslation::query()->create([
+            'lab_project_id' => $archivedLab->id,
+            'locale' => 'en',
+            'title' => 'Archived Lab',
+        ]);
+
+        $futureLab = LabProject::query()->create([
+            'slug' => 'future-lab',
+            'status' => LabProjectStatus::Building,
+            'is_featured' => true,
+            'published_at' => now()->addDay(),
+        ]);
+        LabProjectTranslation::query()->create([
+            'lab_project_id' => $futureLab->id,
+            'locale' => 'en',
+            'title' => 'Future Lab',
         ]);
 
         $hiddenExperience = Experience::query()->create([
@@ -112,9 +172,50 @@ class PublicApiHomeTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonMissing(['slug' => 'draft-project'])
+            ->assertJsonMissing(['slug' => 'non-featured-project'])
+            ->assertJsonMissing(['slug' => 'archived-project'])
+            ->assertJsonMissing(['slug' => 'future-project'])
             ->assertJsonMissing(['slug' => 'idea-lab'])
+            ->assertJsonMissing(['slug' => 'archived-lab'])
+            ->assertJsonMissing(['slug' => 'future-lab'])
             ->assertJsonMissing(['company' => 'Hidden Co'])
             ->assertJsonMissing(['slug' => 'hidden-tech']);
+    }
+
+    public function test_home_endpoint_returns_null_settings_and_hero_when_missing_or_hidden(): void
+    {
+        $settings = SiteSetting::query()->create([
+            'site_name' => 'Inactive Portfolio',
+            'is_active' => false,
+        ]);
+        SiteSettingTranslation::query()->create([
+            'site_setting_id' => $settings->id,
+            'locale' => 'en',
+            'tagline' => 'Hidden settings',
+        ]);
+
+        $hero = HeroContent::query()->create([
+            'status' => HeroContentStatus::Draft,
+            'is_active' => true,
+            'published_at' => now(),
+        ]);
+        HeroContentTranslation::query()->create([
+            'hero_content_id' => $hero->id,
+            'locale' => 'en',
+            'headline' => 'Hidden hero',
+        ]);
+
+        $response = $this->getJson('/api/v1/home');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.settings', null)
+            ->assertJsonPath('data.hero', null)
+            ->assertJsonCount(0, 'data.featuredProjects')
+            ->assertJsonCount(0, 'data.labProjects')
+            ->assertJsonPath('meta.resolvedLocale', 'en')
+            ->assertJsonMissing(['siteName' => 'Inactive Portfolio'])
+            ->assertJsonMissing(['headline' => 'Hidden hero']);
     }
 
     public function test_home_endpoint_includes_fallback_metadata(): void

@@ -113,6 +113,58 @@ class PublicApiLabProjectsTest extends TestCase
             ->assertJsonPath('meta.fallbackUsed', true);
     }
 
+
+    public function test_labs_list_allows_null_published_at_for_public_statuses(): void
+    {
+        $lab = LabProject::query()->create([
+            'slug' => 'building-without-date',
+            'status' => LabProjectStatus::Building,
+            'published_at' => null,
+        ]);
+        LabProjectTranslation::query()->create([
+            'lab_project_id' => $lab->id,
+            'locale' => 'en',
+            'title' => 'Building Without Date',
+        ]);
+
+        $response = $this->getJson('/api/v1/labs');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.slug', 'building-without-date')
+            ->assertJsonPath('data.0.publishedAt', null);
+    }
+
+    public function test_labs_list_hides_future_published_labs(): void
+    {
+        $public = $this->createLabProject('building-lab', LabProjectStatus::Building);
+        LabProjectTranslation::query()->create([
+            'lab_project_id' => $public->id,
+            'locale' => 'en',
+            'title' => 'Building Lab',
+        ]);
+
+        $future = LabProject::query()->create([
+            'slug' => 'future-lab',
+            'status' => LabProjectStatus::Shipped,
+            'published_at' => now()->addDay(),
+        ]);
+        LabProjectTranslation::query()->create([
+            'lab_project_id' => $future->id,
+            'locale' => 'en',
+            'title' => 'Future Lab',
+        ]);
+
+        $response = $this->getJson('/api/v1/labs');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.slug', 'building-lab')
+            ->assertJsonMissing(['slug' => 'future-lab']);
+    }
+
     private function createLabProject(string $slug, LabProjectStatus $status): LabProject
     {
         return LabProject::query()->create([

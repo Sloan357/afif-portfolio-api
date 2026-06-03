@@ -225,6 +225,163 @@ class PublicApiProjectsTest extends TestCase
             ->assertJsonPath('errors.perPage.0', 'The perPage must be an integer between 1 and 50.');
     }
 
+
+    public function test_projects_list_hides_review_archived_and_future_published_projects(): void
+    {
+        $published = $this->createProject('published-project', ProjectStatus::Published);
+        ProjectTranslation::query()->create([
+            'project_id' => $published->id,
+            'locale' => 'en',
+            'title' => 'Published Project',
+        ]);
+
+        foreach ([ProjectStatus::Review, ProjectStatus::Archived] as $status) {
+            $hidden = $this->createProject($status->value.'-project', $status);
+            ProjectTranslation::query()->create([
+                'project_id' => $hidden->id,
+                'locale' => 'en',
+                'title' => $status->value.' Project',
+            ]);
+        }
+
+        $future = Project::query()->create([
+            'slug' => 'future-project',
+            'status' => ProjectStatus::Published,
+            'published_at' => now()->addDay(),
+        ]);
+        ProjectTranslation::query()->create([
+            'project_id' => $future->id,
+            'locale' => 'en',
+            'title' => 'Future Project',
+        ]);
+
+        $response = $this->getJson('/api/v1/projects');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.slug', 'published-project')
+            ->assertJsonMissing(['slug' => 'review-project'])
+            ->assertJsonMissing(['slug' => 'archived-project'])
+            ->assertJsonMissing(['slug' => 'future-project']);
+    }
+
+    public function test_projects_detail_returns_404_envelope_for_unpublished_slug(): void
+    {
+        $hiddenProjects = [
+            $this->createProject('draft-project', ProjectStatus::Draft),
+            $this->createProject('review-project', ProjectStatus::Review),
+            $this->createProject('archived-project', ProjectStatus::Archived),
+            Project::query()->create([
+                'slug' => 'future-project',
+                'status' => ProjectStatus::Published,
+                'published_at' => now()->addDay(),
+            ]),
+        ];
+
+        foreach ($hiddenProjects as $project) {
+            ProjectTranslation::query()->create([
+                'project_id' => $project->id,
+                'locale' => 'en',
+                'title' => 'Hidden Project',
+            ]);
+
+            $response = $this->getJson('/api/v1/projects/'.$project->slug);
+
+            $response
+                ->assertStatus(404)
+                ->assertJsonPath('data', null)
+                ->assertJsonPath('meta.resolvedLocale', 'en')
+                ->assertJsonPath('links.self', url('/api/v1/projects/'.$project->slug));
+        }
+    }
+
+    public function test_projects_paginated_list_includes_fallback_metadata(): void
+    {
+        $project = $this->createProject('portfolio-cms', ProjectStatus::Published);
+        ProjectTranslation::query()->create([
+            'project_id' => $project->id,
+            'locale' => 'en',
+            'title' => 'Portfolio CMS',
+            'summary' => 'English summary.',
+            'content' => 'English content.',
+        ]);
+        ProjectTranslation::query()->create([
+            'project_id' => $project->id,
+            'locale' => 'fr',
+            'title' => 'CMS de portfolio',
+        ]);
+
+        $response = $this->getJson('/api/v1/projects?locale=fr&perPage=1');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.0.title', 'CMS de portfolio')
+            ->assertJsonPath('data.0.summary', 'English summary.')
+            ->assertJsonPath('data.0.content', 'English content.')
+            ->assertJsonPath('meta.fallbackUsed', true)
+            ->assertJsonPath('meta.pagination.perPage', 1)
+            ->assertJsonPath('links.self', url('/api/v1/projects?locale=fr&perPage=1&page=1'));
+
+        $fallbackFields = $response->json('meta.fallbackFields');
+
+        $this->assertContains('projects.0.summary', $fallbackFields);
+        $this->assertContains('projects.0.content', $fallbackFields);
+    }
+
+    public function test_projects_pagination_handles_out_of_range_page(): void
+    {
+        $project = $this->createProject('project-1', ProjectStatus::Published);
+        ProjectTranslation::query()->create([
+            'project_id' => $project->id,
+            'locale' => 'en',
+            'title' => 'Project 1',
+        ]);
+
+        $response = $this->getJson('/api/v1/projects?page=99&perPage=1');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('meta.pagination.currentPage', 99)
+            ->assertJsonPath('meta.pagination.lastPage', 1)
+            ->assertJsonPath('meta.pagination.from', null)
+            ->assertJsonPath('meta.pagination.to', null)
+            ->assertJsonPath('links.next', null);
+    }
+
+    public function test_projects_pagination_accepts_max_per_page(): void
+    {
+        foreach (range(1, 3) as $index) {
+            $project = $this->createProject('max-project-'.$index, ProjectStatus::Published, $index);
+            ProjectTranslation::query()->create([
+                'project_id' => $project->id,
+                'locale' => 'en',
+                'title' => 'Max Project '.$index,
+            ]);
+        }
+
+        $response = $this->getJson('/api/v1/projects?perPage=50');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('meta.pagination.perPage', 50);
+    }
+
+    public function test_projects_pagination_rejects_array_parameters(): void
+    {
+        $this->getJson('/api/v1/projects?page[]=1')
+            ->assertStatus(422)
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('errors.page.0', 'The page must be an integer greater than or equal to 1.');
+
+        $this->getJson('/api/v1/projects?perPage[]=12')
+            ->assertStatus(422)
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('errors.perPage.0', 'The perPage must be an integer between 1 and 50.');
+    }
+
     private function createProject(string $slug, ProjectStatus $status, ?int $sortOrder = null): Project
     {
         return Project::query()->create([

@@ -123,4 +123,34 @@ class PublicApiTechnologiesTest extends TestCase
             ->assertJsonMissingPath('data.0.icon.disk')
             ->assertJsonMissingPath('data.0.icon.path');
     }
+
+    public function test_technologies_list_hides_private_icon_media(): void
+    {
+        $icon = Media::query()->create([
+            'disk' => 'public',
+            'path' => 'media/private.svg',
+            'url' => 'https://cdn.example.com/media/private.svg',
+            'type' => MediaType::Image,
+            'alt_text' => ['en' => 'Private icon'],
+            'caption' => [],
+            'metadata' => [],
+            'variants' => [],
+            'is_public' => false,
+        ]);
+
+        Technology::query()->create([
+            'slug' => 'private-icon-tech',
+            'name' => 'Private Icon Tech',
+            'icon_media_id' => $icon->id,
+            'is_visible' => true,
+        ]);
+
+        $response = $this->getJson('/api/v1/technologies');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.0.icon', null)
+            ->assertJsonMissing(['src' => 'https://cdn.example.com/media/private.svg']);
+    }
+
 }
