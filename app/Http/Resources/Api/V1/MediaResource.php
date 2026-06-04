@@ -162,6 +162,10 @@ class MediaResource extends JsonResource
 
     private function sourceUrl(): ?string
     {
+        if (! $this->is_public) {
+            return null;
+        }
+
         if (filled($this->url)) {
             return $this->url;
         }

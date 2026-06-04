@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Enums\MediaType;
+use App\Filament\Resources\MediaResource as FilamentMediaResource;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Models\Media;
 use Illuminate\Http\Request;
@@ -114,6 +115,64 @@ class MediaResourceTest extends TestCase
         $this->assertArrayNotHasKey('source_path', $data['metadata']);
         $this->assertArrayNotHasKey('internal', $data['variants']);
         $this->assertArrayNotHasKey('secret', $data['variants']['thumb']);
+    }
+
+    public function test_public_filesystem_disk_uses_same_origin_storage_url_by_default(): void
+    {
+        $this->assertSame('/storage', config('filesystems.disks.public.url'));
+    }
+
+    public function test_media_resource_generates_public_storage_url_for_public_disk_media(): void
+    {
+        config()->set('filesystems.disks.public.url', '/storage');
+
+        $media = new Media([
+            'uuid' => '55555555-5555-5555-5555-555555555555',
+            'disk' => 'public',
+            'path' => 'media/project.png',
+            'type' => MediaType::Image,
+            'alt_text' => ['en' => 'Project screenshot'],
+            'caption' => [],
+            'variants' => [],
+            'metadata' => [],
+            'is_public' => true,
+        ]);
+        $media->id = 14;
+
+        $request = Request::create('/api/v1/media/14', 'GET');
+        $data = (new MediaResource($media))->resolve($request);
+
+        $this->assertSame('/storage/media/project.png', $data['src']);
+    }
+
+    public function test_media_resource_does_not_emit_private_media_source_url(): void
+    {
+        $media = new Media([
+            'uuid' => '66666666-6666-6666-6666-666666666666',
+            'disk' => 'local',
+            'path' => 'media/private.png',
+            'url' => 'https://cdn.example.com/media/private.png',
+            'type' => MediaType::Image,
+            'alt_text' => ['en' => 'Private screenshot'],
+            'caption' => [],
+            'variants' => [],
+            'metadata' => [],
+            'is_public' => false,
+        ]);
+        $media->id = 15;
+
+        $request = Request::create('/api/v1/media/15', 'GET');
+        $data = (new MediaResource($media))->resolve($request);
+
+        $this->assertNull($data['src']);
+    }
+
+    public function test_filament_media_resource_uses_public_disk_only_for_public_media(): void
+    {
+        config()->set('portfolio.storage.private_media_disk', 'local');
+
+        $this->assertSame('public', FilamentMediaResource::diskForVisibility(true));
+        $this->assertSame('local', FilamentMediaResource::diskForVisibility(false));
     }
 
     public function test_media_resource_falls_back_to_english_localized_text(): void

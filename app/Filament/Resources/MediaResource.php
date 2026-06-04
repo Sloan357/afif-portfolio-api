@@ -9,12 +9,15 @@ use App\Models\Media;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\BaseFileUpload;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
@@ -22,6 +25,8 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Arr;
+use League\Flysystem\UnableToCheckFileExistence;
 
 class MediaResource extends Resource
 {
@@ -31,22 +36,65 @@ class MediaResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'path';
 
+    public static function diskForVisibility(bool $isPublic): string
+    {
+        if ($isPublic) {
+            return 'public';
+        }
+
+        return config('portfolio.storage.private_media_disk', 'local');
+    }
+
+    /**
+     * @param  string|array<string, string>|null  $storedFileNames
+     * @return array{name: string, size: int, type: ?string, url: ?string}|null
+     */
+    public static function uploadedFileForFilamentPreview(BaseFileUpload $component, string $file, string|array|null $storedFileNames): ?array
+    {
+        if ($component->getVisibility() === 'public') {
+            return $component->getUploadedFile($file, $storedFileNames);
+        }
+
+        $storage = $component->getDisk();
+
+        if ($component->shouldFetchFileInformation()) {
+            try {
+                if (! $storage->exists($file)) {
+                    return null;
+                }
+            } catch (UnableToCheckFileExistence) {
+                return null;
+            }
+        }
+
+        return [
+            'name' => ($component->isMultiple() ? (Arr::wrap($storedFileNames)[$file] ?? null) : $storedFileNames) ?? basename($file),
+            'size' => $component->shouldFetchFileInformation() ? $storage->size($file) : 0,
+            'type' => $component->shouldFetchFileInformation() ? $storage->mimeType($file) : null,
+            'url' => null,
+        ];
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
+                Toggle::make('is_public')
+                    ->label('Public')
+                    ->default(true)
+                    ->live(),
+
                 FileUpload::make('path')
                     ->label('Image')
                     ->image()
-                    ->disk(fn (): string => config('filesystems.default', 'local'))
+                    ->disk(fn (Get $get): string => self::diskForVisibility((bool) $get('is_public')))
                     ->directory('media')
-                    ->visibility('public')
+                    ->visibility(fn (Get $get): string => $get('is_public') ? 'public' : 'private')
+                    ->getUploadedFileUsing(fn (BaseFileUpload $component, string $file, string|array|null $storedFileNames): ?array => self::uploadedFileForFilamentPreview($component, $file, $storedFileNames))
                     ->required(),
 
-                TextInput::make('disk')
-                    ->default(fn (): string => config('filesystems.default', 'local'))
-                    ->required()
-                    ->maxLength(255),
+                Hidden::make('disk')
+                    ->default(fn (): string => self::diskForVisibility(true)),
 
                 Select::make('type')
                     ->options(MediaType::options())
@@ -73,10 +121,6 @@ class MediaResource extends Resource
                 Textarea::make('caption.fr')
                     ->label('Caption (French)')
                     ->rows(3),
-
-                Toggle::make('is_public')
-                    ->label('Public')
-                    ->default(true),
 
                 TextInput::make('sort_order')
                     ->numeric()

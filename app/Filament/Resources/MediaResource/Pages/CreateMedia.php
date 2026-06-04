@@ -13,6 +13,7 @@ class CreateMedia extends CreateRecord
     protected function handleRecordCreation(array $data): Model
     {
         $data['created_by'] = auth()->id();
+        $data['disk'] = MediaResource::diskForVisibility((bool) ($data['is_public'] ?? true));
 
         return static::getModel()::create($data);
     }

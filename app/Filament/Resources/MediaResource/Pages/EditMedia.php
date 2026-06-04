@@ -10,6 +10,13 @@ class EditMedia extends EditRecord
 {
     protected static string $resource = MediaResource::class;
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $data['disk'] = MediaResource::diskForVisibility((bool) ($data['is_public'] ?? true));
+
+        return $data;
+    }
+
     protected function getHeaderActions(): array
     {
         return [

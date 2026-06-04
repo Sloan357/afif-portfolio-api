@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MediaType;
 use App\Enums\ProjectStatus;
+use App\Models\Media;
 use App\Models\Project;
 use App\Models\ProjectTranslation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -84,6 +86,70 @@ class PublicApiProjectsTest extends TestCase
             ->assertJsonPath('data.content', 'Project content.')
             ->assertJsonPath('data.seo.title', 'Portfolio CMS SEO')
             ->assertJsonPath('data.links.self', url('/api/v1/projects/portfolio-cms'));
+    }
+
+    public function test_projects_detail_returns_featured_image_src(): void
+    {
+        config()->set('filesystems.disks.public.url', '/storage');
+
+        $featuredImage = Media::query()->create([
+            'disk' => 'public',
+            'path' => 'media/project-featured.png',
+            'type' => MediaType::Image,
+            'alt_text' => ['en' => 'Project featured image'],
+            'caption' => [],
+            'metadata' => [],
+            'variants' => [],
+            'is_public' => true,
+        ]);
+
+        $project = $this->createProject('portfolio-cms', ProjectStatus::Published);
+        $project->update(['featured_image_id' => $featuredImage->id]);
+        ProjectTranslation::query()->create([
+            'project_id' => $project->id,
+            'locale' => 'en',
+            'title' => 'Portfolio CMS',
+        ]);
+
+        $response = $this->getJson('/api/v1/projects/portfolio-cms');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.featuredImage.src', '/storage/media/project-featured.png')
+            ->assertJsonPath('data.featuredImage.alt', 'Project featured image')
+            ->assertJsonPath('data.seoImage', null);
+    }
+
+    public function test_projects_detail_returns_seo_image_src(): void
+    {
+        config()->set('filesystems.disks.public.url', '/storage');
+
+        $seoImage = Media::query()->create([
+            'disk' => 'public',
+            'path' => 'media/project-seo.png',
+            'type' => MediaType::Image,
+            'alt_text' => ['en' => 'Project SEO image'],
+            'caption' => [],
+            'metadata' => [],
+            'variants' => [],
+            'is_public' => true,
+        ]);
+
+        $project = $this->createProject('portfolio-cms', ProjectStatus::Published);
+        $project->update(['seo_image_id' => $seoImage->id]);
+        ProjectTranslation::query()->create([
+            'project_id' => $project->id,
+            'locale' => 'en',
+            'title' => 'Portfolio CMS',
+        ]);
+
+        $response = $this->getJson('/api/v1/projects/portfolio-cms');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.featuredImage', null)
+            ->assertJsonPath('data.seoImage.src', '/storage/media/project-seo.png')
+            ->assertJsonPath('data.seoImage.alt', 'Project SEO image');
     }
 
     public function test_projects_detail_uses_english_fallback_for_missing_french_fields(): void
@@ -224,7 +290,6 @@ class PublicApiProjectsTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('errors.perPage.0', 'The perPage must be an integer between 1 and 50.');
     }
-
 
     public function test_projects_list_hides_review_archived_and_future_published_projects(): void
     {
