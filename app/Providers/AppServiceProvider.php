@@ -24,12 +24,12 @@ class AppServiceProvider extends ServiceProvider
             return;
         }
 
+        URL::forceScheme('https');
+
         $appUrl = (string) config('app.url');
 
         if ($appUrl !== '') {
             URL::forceRootUrl(preg_replace('/^http:\/\//i', 'https://', $appUrl));
         }
-
-        URL::forceScheme('https');
     }
 }
