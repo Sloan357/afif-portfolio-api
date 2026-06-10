@@ -3,7 +3,7 @@
 namespace Tests\Unit;
 
 use App\Enums\HeroContentStatus;
-use App\Filament\Resources\HeroContentResource;
+use App\Rules\CtaUrl;
 use App\Models\HeroContent;
 use App\Models\HeroContentTranslation;
 use PHPUnit\Framework\TestCase;
@@ -36,7 +36,7 @@ class HeroContentTest extends TestCase
 
     public function test_hero_content_cta_urls_allow_anchors_and_relative_paths(): void
     {
-        foreach (['#projects', '#contact', '/en#projects', '/fr#contact', '/projects', 'https://afifelcharif.com'] as $value) {
+        foreach (['#projects', '#contact', '/en#projects', '/fr#contact', '/projects', 'https://afifelcharif.com/en#projects', 'https://afifelcharif.com/en#contact'] as $value) {
             $this->assertHeroContentCtaUrlPasses($value);
         }
     }
@@ -60,11 +60,9 @@ class HeroContentTest extends TestCase
 
     private function heroContentCtaUrlFails(string $value): bool
     {
-        $method = new \ReflectionMethod(HeroContentResource::class, 'ctaUrlRule');
-        $rule = $method->invoke(null);
         $failed = false;
 
-        $rule('cta_url', $value, function () use (&$failed): void {
+        (new CtaUrl())->validate('cta_url', $value, function () use (&$failed): void {
             $failed = true;
         });
 

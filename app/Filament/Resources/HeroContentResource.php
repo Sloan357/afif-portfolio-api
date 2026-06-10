@@ -5,7 +5,7 @@ namespace App\Filament\Resources;
 use App\Enums\HeroContentStatus;
 use App\Filament\Resources\HeroContentResource\Pages;
 use App\Models\HeroContent;
-use Closure;
+use App\Rules\CtaUrl;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -104,13 +104,13 @@ class HeroContentResource extends Resource
                                 TextInput::make('primary_cta_url')
                                     ->label('Primary CTA URL')
                                     ->maxLength(255)
-                                    ->rule(static::ctaUrlRule())
+                                    ->rule(new CtaUrl())
                                     ->placeholder('#projects'),
 
                                 TextInput::make('secondary_cta_url')
                                     ->label('Secondary CTA URL')
                                     ->maxLength(255)
-                                    ->rule(static::ctaUrlRule())
+                                    ->rule(new CtaUrl())
                                     ->placeholder('#contact'),
 
                                 TextInput::make('en_primary_cta_label')
@@ -216,39 +216,6 @@ class HeroContentResource extends Resource
                     ])
                     ->columnSpanFull(),
             ]);
-    }
-
-    private static function ctaUrlRule(): Closure
-    {
-        return function (string $attribute, mixed $value, Closure $fail): void {
-            if ($value === null || $value === '') {
-                return;
-            }
-
-            if (! is_string($value) || preg_match('/\s|[\x00-\x1F\x7F]/', $value)) {
-                $fail('The :attribute must be a valid URL, relative path, or anchor.');
-
-                return;
-            }
-
-            if (preg_match('/^#[A-Za-z0-9][A-Za-z0-9_-]*$/', $value)) {
-                return;
-            }
-
-            if (preg_match('/^\/(?!\/)[A-Za-z0-9._~\/-]*(?:#[A-Za-z0-9][A-Za-z0-9_-]*)?$/', $value)) {
-                return;
-            }
-
-            if (filter_var($value, FILTER_VALIDATE_URL) !== false) {
-                $scheme = strtolower((string) parse_url($value, PHP_URL_SCHEME));
-
-                if (in_array($scheme, ['http', 'https'], true)) {
-                    return;
-                }
-            }
-
-            $fail('The :attribute must be a valid URL, relative path, or anchor.');
-        };
     }
 
     public static function table(Table $table): Table
